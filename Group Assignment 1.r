@@ -1,67 +1,9 @@
-inTeams<-read.csv("Documents/R/Alistair/TeamEstim.csv")
-head(inTeams)
-
-mean.off<-mean(inTeams$off)
-mean.def<-mean(inTeams$def)
-lmean.off<-mean(log(inTeams$off))
-lmean.def<-mean(log(inTeams$def) ) 
-mean.off
-mean.def
-
-premLeague<-subset(inTeams,league=="Barclays Premier League")
-premTeams<-premLeague$name
-rownames(premLeague)<-premTeams
-df.prem<-premLeague[,c("off","def")]
-df.prem
-
-lmean.def<- log(mean(df.prem$def))
-lmean.off<- log(mean(df.prem$off))               
-df.prem["alpha"]<-log(df.prem["off"])-lmean.def
-df.prem["delta"]<-lmean.off-log(df.prem["def"])
-head(df.prem) 
-alphaList<-df.prem$alpha
-deltaList<-df.prem$delta
-names(alphaList)<-rownames(df.prem)
-names(deltaList)<-rownames(df.prem)
-alphaList["Liverpool"]
-
-rpois(1,exp(alphaList["Liverpool"]-deltaList["Manchester City"]) )
-c(rpois(1,exp(alphaList["Liverpool"]-deltaList["Manchester City"])),
-  rpois(1,exp(alphaList["Manchester City"]-deltaList["Liverpool"])))
-draw.score<-function(team1,team2){
-    c(
-        rpois(1,exp(alphaList[team1]-deltaList[team2])),
-  rpois(1,exp(alphaList[team2]-deltaList[team1]))
-    )
-}
-
-draw.score("Liverpool","Arsenal")
-df.prem[c("Liverpool","Arsenal"),]
-draw.score("Liverpool","Arsenal")
-#install.packages('gtools')
-library('gtools')
-# All possible matches in a season
-allMatches<-permutations(20, 2, v=rownames(df.prem),repeats.allowed=FALSE)
-colnames(allMatches)<-c("home","away")
-head(allMatches,9)
-length(allMatches)
-# Example scores through the entire season
-ScoresMatrix <- matrix(nrow=nrow(allMatches),  ncol=4)
-for (ii in 1:nrow(allMatches)  ) {
-     ScoresMatrix[ii,1:2]=allMatches[ii,]
-     ScoresMatrix[ii,3:4]= draw.score(allMatches[ii,"home"],allMatches[ii,"away"] )  
-}
-colnames(ScoresMatrix)<-c("home.team","away.team","home.score","away.score")
-head(ScoresMatrix)
-
-# This is how Claude responded to the assignment
-
 library(readr)
 library(dplyr)
 library(ggplot2)
 
 # Read the data
-data <- read_csv("/Users/Swain/Documents/R/Alistair/TeamEstim.csv")
+team_data <- read.csv("/Users/Swain/Documents/R/Alistair/TeamEstim.csv")
 
 # Revenue mapping
 revenue_mapping <- c(
@@ -96,16 +38,70 @@ simulate_match <- function(home_team, away_team, team_data) {
   )
 }
 
-# Simulate entire season
-simulate_season <- function(team_data, num_simulations = 10000) {
-  # Create all possible match combinations
+simulate_match("Liverpool","Chelsea",team_data)
+
+library(tidyr)
+
+simulate_season <- function(team_data, num_simulations = 1000, revenue_mapping) {
   teams <- team_data$team
   matches <- expand.grid(home_team = teams, away_team = teams) %>%
     filter(home_team != away_team)
   
-  # Function to run a single season simulation
-  run_simulation <- function() {
-    # Simulate all matches
+  simulation_results <- list()
+  
+  calculate_standings <- function(season_results, revenue_mapping = NULL) {
+    standings <- bind_rows(
+      season_results %>%
+        group_by(home_team) %>%
+        summarise(
+          matches_played = n(),
+          goals_for = sum(home_goals),
+          goals_against = sum(away_goals),
+          wins = sum(result == "home_win"),
+          draws = sum(result == "draw"),
+          losses = sum(result == "away_win"),
+          points = wins * 3 + draws,
+          goal_difference = goals_for - goals_against
+        ) %>%
+        rename(team = home_team),
+      
+      season_results %>%
+        group_by(away_team) %>%
+        summarise(
+          matches_played = n(),
+          goals_for = sum(away_goals),
+          goals_against = sum(home_goals),
+          wins = sum(result == "away_win"),
+          draws = sum(result == "draw"),
+          losses = sum(result == "home_win"),
+          points = wins * 3 + draws,
+          goal_difference = goals_for - goals_against
+        ) %>%
+        rename(team = away_team)
+    ) %>%
+      group_by(team) %>%
+      summarise(
+        matches_played = sum(matches_played) / 2,
+        goals_for = sum(goals_for),
+        goals_against = sum(goals_against),
+        wins = sum(wins),
+        draws = sum(draws),
+        losses = sum(losses),
+        points = sum(points),
+        goal_difference = sum(goal_difference)
+      ) %>%
+      arrange(desc(points), desc(goal_difference), desc(goals_for)) %>%
+      mutate(position = row_number())
+    
+    if (!is.null(revenue_mapping)) {
+      standings <- standings %>%
+        mutate(revenue = revenue_mapping[as.character(position)])
+    }
+    
+    return(standings)
+  }
+  
+  for (sim in 1:num_simulations) {
     season_results <- matches %>%
       rowwise() %>%
       mutate(match = list(simulate_match(home_team, away_team, team_data))) %>%
@@ -120,59 +116,42 @@ simulate_season <- function(team_data, num_simulations = 10000) {
       ) %>%
       ungroup()
     
-    # Calculate team standings
-    standings <- bind_rows(
-      # Home team results
-      season_results %>%
-        group_by(home_team) %>%
-        summarise(
-          matches_played = n(),
-          goals_for = sum(home_goals),
-          goals_against = sum(away_goals),
-          wins = sum(result == "home_win") * 3,
-          draws = sum(result == "draw"),
-          points = wins + draws,
-          goal_difference = goals_for - goals_against
-        ) %>%
-        rename(team = home_team),
-      
-      # Away team results
-      season_results %>%
-        group_by(away_team) %>%
-        summarise(
-          matches_played = n(),
-          goals_for = sum(away_goals),
-          goals_against = sum(home_goals),
-          wins = sum(result == "away_win") * 3,
-          draws = sum(result == "draw"),
-          points = wins + draws,
-          goal_difference = goals_for - goals_against
-        ) %>%
-        rename(team = away_team)
-    ) %>%
-      group_by(team) %>%
-      summarise(
-        matches_played = sum(matches_played),
-        goals_for = sum(goals_for),
-        goals_against = sum(goals_against),
-        points = sum(points),
-        goal_difference = sum(goal_difference)
-      ) %>%
-      arrange(desc(points), desc(goal_difference), desc(goals_for)) %>%
-      mutate(position = row_number()) %>%
-      mutate(revenue = revenue_mapping[as.character(position)])
-    
-    return(standings)
+    simulation_standings <- calculate_standings(season_results, revenue_mapping)
+    simulation_results[[sim]] <- simulation_standings
   }
   
-  # Run multiple simulations
-  sim_results <- replicate(num_simulations, run_simulation(), simplify = FALSE)
+  combined_results <- bind_rows(simulation_results, .id = "simulation") %>%
+    group_by(team) %>%
+    summarise(
+      avg_position = mean(position),
+      position_std = sd(position),
+      avg_points = mean(points),
+      points_std = sd(points),
+      avg_goals_for = mean(goals_for),
+      goals_for_std = sd(goals_for),
+      avg_goals_against = mean(goals_against),
+      goals_against_std = sd(goals_against),
+      avg_revenue = mean(revenue, na.rm = TRUE),
+    revenue_std = sd(revenue, na.rm = TRUE)
+    ) %>%
+    arrange(avg_position)
   
-  return(sim_results)
+  return(combined_results)
 }
 
-# Run simulations
-set.seed(123)
+# Simulate the season
+season_simulation <- simulate_season(team_data, num_simulations = 1000,revenue_mapping)
+print(season_simulation)
+# Cache simulation
+season_simulation <- write.csv(season_simulation, "season_simulation.csv")
+
+# TO DO - RANDOM TIEBREAKER NUMBER
+
+# QUESTIONS BELOW - FIX GRAPH VARIABLES
+
+# Assemble a ranking of the teams from best to worst according to their expected position in the table.
+    # Illustrate this ranking with a clear visualization of the expected position
+
 season_simulations <- simulate_season(data)
 
 # Expected Position Analysis
@@ -196,6 +175,9 @@ ggplot(expected_positions, aes(x = reorder(team, -mean_position), y = mean_posit
        x = "Team", y = "Expected Position") +
   theme_minimal()
 
+# Which teams have the most variability in their simulated earnings?
+    # Again, illustrate this variability with a clear visualization.
+
 # Earnings Variability Visualization
 ggplot(expected_positions, aes(x = reorder(team, mean_revenue), y = mean_revenue)) +
   geom_bar(stat = "identity", fill = "coral") +
@@ -207,7 +189,8 @@ ggplot(expected_positions, aes(x = reorder(team, mean_revenue), y = mean_revenue
        x = "Team", y = "Expected Revenue (£ millions)") +
   theme_minimal()
 
-# Print key results
-print(expected_positions)
-
+# Which teams stand to benefit the most in monetary terms from a "lucky win" (converting one of their simulated losses to a win, holding everyone else constant)?
+    # Again provide a visualization of this marginal effect
+# Finally, for each team, calculate the monetary benefit to each team from either (i) an increase of 10% to their expected goals scored (holding everyone else constant), or (ii) a decreasing in their expected goals conceded by 10% (Note that this means 40 separate simulations!)
+    # Use this to provide a clear visualization of the benefits of investing in offense versus defense by team
 
