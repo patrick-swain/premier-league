@@ -1,0 +1,1 @@
+This analysis uses Poisson distributions and Monte Carlo simulations to predict the outcome of a soccer season in the Premier League, along with associated effects on team revenue corresponding to each expected position rank and its variability.
