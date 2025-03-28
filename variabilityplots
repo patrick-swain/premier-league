@@ -1,0 +1,55 @@
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(forcats)
+
+# Read the simulation results
+season_simulation <- read.csv("season_simulation.csv")
+
+# Position Variability Plot
+p_position <- ggplot(season_simulation, aes(x = fct_reorder(team, position_std))) +
+  geom_bar(aes(y = position_std), stat = "identity", fill = "red", alpha = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Team Position Variability",
+    subtitle = "Standard Deviation of League Position",
+    x = "Teams",
+    y = "Position Standard Deviation"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0, face = "bold"),
+    plot.subtitle = element_text(hjust = 0)
+  ) +
+  geom_text(aes(y = position_std, 
+                label = sprintf("%.2f", position_std)), 
+            hjust = -0.1, 
+            size = 3)
+
+# Revenue Variability Plot
+p_revenue <- ggplot(season_simulation, aes(x = fct_reorder(team, revenue_std))) +
+  geom_bar(aes(y = revenue_std), stat = "identity", fill = "blue", alpha = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Team Revenue Variability",
+    subtitle = "Standard Deviation of Revenue",
+    x = "Teams",
+    y = "Revenue Standard Deviation"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0, face = "bold"),
+    plot.subtitle = element_text(hjust = 0)
+  ) +
+  geom_text(aes(y = revenue_std, 
+                label = sprintf("%.2f", revenue_std)), 
+            hjust = -0.1, 
+            size = 3)
+
+# Save individual plots
+ggsave("team_position_variability.png", p_position, width = 10, height = 8)
+ggsave("team_revenue_variability.png", p_revenue, width = 10, height = 8)
+
+# Print plots
+print(p_position)
+print(p_revenue)
