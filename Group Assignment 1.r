@@ -88,9 +88,10 @@ simulate_season <- function(team_data, num_simulations = 1000, revenue_mapping) 
         draws = sum(draws),
         losses = sum(losses),
         points = sum(points),
-        goal_difference = sum(goal_difference)
+        goal_difference = sum(goal_difference),
+      random_tiebreaker = runif(1, 0, 1)  # Add random number to break ties
       ) %>%
-      arrange(desc(points), desc(goal_difference), desc(goals_for)) %>%
+      arrange(desc(points), desc(goal_difference), desc(goals_for), desc(random_tiebreaker)) %>%
       mutate(position = row_number())
     
     if (!is.null(revenue_mapping)) {
@@ -132,7 +133,8 @@ simulate_season <- function(team_data, num_simulations = 1000, revenue_mapping) 
       avg_goals_against = mean(goals_against),
       goals_against_std = sd(goals_against),
       avg_revenue = mean(revenue, na.rm = TRUE),
-    revenue_std = sd(revenue, na.rm = TRUE)
+      revenue_std = sd(revenue, na.rm = TRUE),
+      avg_tiebreaker = mean(random_tiebreaker)
     ) %>%
     arrange(avg_position)
   
@@ -140,12 +142,10 @@ simulate_season <- function(team_data, num_simulations = 1000, revenue_mapping) 
 }
 
 # Simulate the season
-season_simulation <- simulate_season(team_data, num_simulations = 1000,revenue_mapping)
+season_simulation <- simulate_season(team_data, num_simulations = 10000,revenue_mapping)
 print(season_simulation)
 # Cache simulation
 season_simulation <- write.csv(season_simulation, "season_simulation.csv")
-
-# TO DO - RANDOM TIEBREAKER NUMBER
 
 # QUESTIONS BELOW - FIX GRAPH VARIABLES
 
@@ -193,4 +193,3 @@ ggplot(expected_positions, aes(x = reorder(team, mean_revenue), y = mean_revenue
     # Again provide a visualization of this marginal effect
 # Finally, for each team, calculate the monetary benefit to each team from either (i) an increase of 10% to their expected goals scored (holding everyone else constant), or (ii) a decreasing in their expected goals conceded by 10% (Note that this means 40 separate simulations!)
     # Use this to provide a clear visualization of the benefits of investing in offense versus defense by team
-
